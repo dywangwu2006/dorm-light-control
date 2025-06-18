@@ -1,7 +1,4 @@
 {
   "name": "dorm-light-control",
-  "version": "2.0.0",
-  "dependencies": {
-    "@vercel/functions": "^4.0.0"
-  }
+  "version": "2.0.0"
 }
