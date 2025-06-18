@@ -1,10 +1,10 @@
-import { rateLimit } from '@vercel/rate-limit';
+// 使用 Vercel 内置的速率限制配置
+export const config = {
+  maxDuration: 10,
+};
 
-// 配置速率限制（10秒内最多5次请求）
-const limiter = rateLimit({
-  window: '10s',
-  limit: 5
-});
+// 内存存储的简单速率限制器
+const requestStore = new Map();
 
 export default async (req, res) => {
   // 只允许POST请求
@@ -12,10 +12,37 @@ export default async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   
-  // 应用速率限制
-  const { isRateLimited } = await limiter.check(req);
-  if (isRateLimited) {
-    return res.status(429).json({ error: '操作过于频繁，请稍后再试' });
+  // 获取客户端IP
+  const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  
+  // 速率限制检查
+  const currentTime = Date.now();
+  const windowMs = 10000; // 10秒窗口
+  const maxRequests = 5; // 最大请求数
+  
+  // 初始化或获取客户端记录
+  if (!requestStore.has(clientIP)) {
+    requestStore.set(clientIP, {
+      count: 1,
+      startTime: currentTime
+    });
+  } else {
+    const record = requestStore.get(clientIP);
+    
+    // 检查是否在时间窗口内
+    if (currentTime - record.startTime < windowMs) {
+      // 在时间窗口内，增加计数
+      record.count++;
+      
+      // 检查是否超过限制
+      if (record.count > maxRequests) {
+        return res.status(429).json({ error: '操作过于频繁，请稍后再试' });
+      }
+    } else {
+      // 重置计数器和时间窗口
+      record.count = 1;
+      record.startTime = currentTime;
+    }
   }
   
   const { command } = req.body;
